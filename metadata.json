@@ -1,0 +1,5 @@
+{
+  "name": "Brickearner",
+  "description": "A earn-money application where users complete tasks, watch ads, and take surveys to earn crypto rewards. Features a dark-themed UI, user dashboard, and admin panel.",
+  "requestFramePermissions": []
+}
