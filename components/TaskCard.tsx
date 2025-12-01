@@ -16,6 +16,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, variant = 'full' }) =>
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Track verification status independently of state to handle unmounts correctly
   const isVerifying = useRef(false);
   
   const { showToast } = useToast();
@@ -23,7 +25,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, variant = 'full' }) =>
   // Calculate completions safely
   const completions = (user?.completedTaskIds || []).filter(id => id === task.id).length;
   
-  // Robust limit logic matches backend: explicit maxCompletions takes precedence over isMultiTask
+  // Robust limit logic matches backend
   const limit = (task.maxCompletions && task.maxCompletions > 1) 
                 ? task.maxCompletions 
                 : (task.isMultiTask ? 999999 : 1);
@@ -35,10 +37,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, variant = 'full' }) =>
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      
+      // If the component unmounts while verification is still active, the user navigated away.
       if (isVerifying.current) {
-          // Use setTimeout to ensure toast context is accessible during transition
+          // Use setTimeout to ensure the toast service is still accessible during the transition
           setTimeout(() => {
-              showToast(`Task '${task.title}' failed: You navigated away.`, 'error');
+              showToast(`Task '${task.title}' failed: You left the page too early.`, 'error');
           }, 0);
       }
     };
@@ -60,15 +64,15 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, variant = 'full' }) =>
     setTimer(20); 
     isVerifying.current = true;
     
-    timerRef.current = setInterval(async () => {
+    timerRef.current = setInterval(() => {
         setTimer((prev) => {
             if (prev === null) return null;
             
             if (prev <= 1) {
-                // Timer Finished
+                // Timer Finished naturally
                 if (timerRef.current) clearInterval(timerRef.current);
                 timerRef.current = null;
-                completeTaskProcess();
+                completeTaskProcess(); // Process completion
                 return null;
             }
             return prev - 1;
@@ -77,17 +81,18 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, variant = 'full' }) =>
   };
 
   const completeTaskProcess = async () => {
-    // Flag as finished so unmount doesn't trigger error
+    // Mark verification as finished so unmount cleanup doesn't trigger error
     isVerifying.current = false;
+    
     try {
         await dataService.completeTask(task.id, task.reward);
         showToast(`Task verified! You earned ₿ ${task.reward}`, 'success');
-        setTimer(null);
+        if (navigator.vibrate) navigator.vibrate(100); // Haptic feedback
     } catch (err: any) {
         console.error("Task failed", err);
         showToast(err.message || "Task verification failed", 'error');
-        setTimer(null);
     } finally {
+        setTimer(null);
         setLoading(false);
     }
   };
@@ -97,11 +102,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, variant = 'full' }) =>
       if (timerRef.current) {
           clearInterval(timerRef.current);
           timerRef.current = null;
-          isVerifying.current = false;
-          setTimer(null);
-          setLoading(false);
-          showToast("Task cancelled.", "info");
       }
+      isVerifying.current = false;
+      setTimer(null);
+      setLoading(false);
+      showToast("Task cancelled.", "info");
   }
 
   const isGame = task.type === TaskType.GAME;
@@ -119,13 +124,18 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, variant = 'full' }) =>
     </span>
   );
 
-  // Helper to render the button content with limit tracking
+  // Helper to render the button content with limit tracking and timer
   const renderButtonContent = () => {
-      if (loading) {
+      if (loading && timer === null) {
           return <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>;
       }
       
-      // If allow multiple completions, show the counter prominently
+      // If timer is running, show countdown explicitly
+      if (timer !== null) {
+          return <span className="text-xs font-bold font-mono animate-pulse">{timer}s</span>;
+      }
+      
+      // If allow multiple completions, show the counter
       if (limit > 1 && !isUnlimited) {
           return (
              <div className="flex items-center gap-2 text-xs font-bold">
@@ -173,13 +183,23 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, variant = 'full' }) =>
             {/* Overlay for Timer in Compact Mode */}
             {timer !== null && (
                 <div 
-                    onClick={handleStart} 
+                    onClick={(e) => { e.stopPropagation(); }} 
                     className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20 backdrop-blur-sm"
                 >
                     <Clock className="text-accent mb-1 animate-spin-slow" size={24} />
                     <span className="text-white font-bold text-lg">{timer}s</span>
-                    <span className="text-gray-400 text-xs">Verifying...</span>
+                    <button 
+                        onClick={handleCancel}
+                        className="mt-2 text-[10px] text-red-400 border border-red-400/30 px-2 py-1 rounded hover:bg-red-400/10"
+                    >
+                        Cancel
+                    </button>
                 </div>
+            )}
+            
+            {/* Click handler for card */}
+            {!timer && !isCompleted && (
+                <div className="absolute inset-0 z-0" onClick={handleStart}></div>
             )}
         </div>
       </div>

@@ -1,12 +1,15 @@
+
 import React, { useState } from 'react';
 import { authService } from '../services/firebase';
 import { useUser } from '../context/UserContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { Gift } from '../components/Icons';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState(''); // New state for referral code
   const [loading, setLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const { refreshUser } = useUser();
@@ -18,7 +21,8 @@ export const Login: React.FC = () => {
     setLoading(true);
     try {
       if (isRegistering) {
-        await authService.register(email, password);
+        // Pass referral code to register function
+        await authService.register(email, password, referralCode);
         showToast("Account created successfully!", "success");
       } else {
         await authService.login(email, password);
@@ -84,6 +88,27 @@ export const Login: React.FC = () => {
                         minLength={6}
                     />
                 </div>
+
+                {/* Referral Code Input - Only visible during registration */}
+                {isRegistering && (
+                    <div className="animate-fade-in">
+                        <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-2">
+                            Referral Code <span className="text-gray-500 text-xs">(Optional)</span>
+                        </label>
+                        <div className="relative">
+                            <input 
+                                type="text" 
+                                value={referralCode}
+                                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                                className="w-full bg-background border border-surfaceLight rounded-xl px-4 py-3 pl-10 text-white placeholder-gray-600 focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all uppercase tracking-widest font-mono"
+                                placeholder="CODE123"
+                                maxLength={8}
+                            />
+                            <Gift className="absolute left-3 top-3.5 text-green-500" size={18} />
+                        </div>
+                        <p className="text-[10px] text-green-500/80 mt-1 ml-1">Enter a code to get a sign-up bonus!</p>
+                    </div>
+                )}
                 
                 <button 
                     type="submit" 
@@ -98,7 +123,7 @@ export const Login: React.FC = () => {
                 <p className="text-sm text-gray-400">
                     {isRegistering ? "Already have an account?" : "Don't have an account?"}
                     <button 
-                        onClick={() => setIsRegistering(!isRegistering)}
+                        onClick={() => { setIsRegistering(!isRegistering); setReferralCode(''); }}
                         className="ml-2 text-primary font-bold hover:underline"
                     >
                         {isRegistering ? "Log In" : "Sign Up"}

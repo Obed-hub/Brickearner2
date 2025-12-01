@@ -167,33 +167,78 @@ export const authService = {
     }
   },
 
-  register: async (email: string, password: string): Promise<void> => {
+  register: async (email: string, password: string, referralCodeInput?: string): Promise<void> => {
     try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const isAdmin = checkIsAdmin(cred.user.uid, email);
         
+        let initialBalance = 0;
+        let referrerId = undefined;
+
+        // --- HANDLE REFERRAL CODE LOGIC ---
+        if (referralCodeInput && referralCodeInput.length >= 6) {
+            try {
+                const settingsRef = doc(db, PATHS.GLOBALS, 'settings');
+                const settingsSnap = await getDoc(settingsRef);
+                const settings = settingsSnap.exists() ? settingsSnap.data() as GlobalSettings : INITIAL_SETTINGS;
+                const baseBonus = settings.referralBonus || 0.10;
+
+                // Find Referrer
+                const q = query(collection(db, PATHS.USERS), where("referralCode", "==", referralCodeInput.trim()));
+                const querySnapshot = await getDocs(q);
+
+                if (!querySnapshot.empty) {
+                    const referrerDoc = querySnapshot.docs[0];
+                    referrerId = referrerDoc.id;
+                    const referrerData = referrerDoc.data() as User;
+
+                    // Calculate Referrer Reward (Tiered)
+                    const currentReferrals = referrerData.referralCount || 0;
+                    let multiplier = 1;
+                    if (currentReferrals >= 20) multiplier = 2;
+                    else if (currentReferrals >= 5) multiplier = 1.5;
+                    
+                    const referrerReward = baseBonus * multiplier;
+                    const refereeReward = baseBonus / 2; // New user gets half bonus
+
+                    // Update Referrer Immediately
+                    await updateDoc(doc(db, PATHS.USERS, referrerId), {
+                        balance: (referrerData.balance || 0) + referrerReward,
+                        referralCount: (referrerData.referralCount || 0) + 1
+                    });
+
+                    // Set New User Bonus
+                    initialBalance = refereeReward;
+                }
+            } catch (err) {
+                console.error("Error processing referral during signup:", err);
+                // Continue registration even if referral fails
+            }
+        }
+
         const newUser: User = {
-        uid: cred.user.uid,
-        email: email,
-        balance: 0,
-        referralCode: Math.random().toString(36).substr(2, 6).toUpperCase(),
-        completedTaskIds: [],
-        isAdmin: isAdmin,
-        isBanned: false,
-        joinedAt: new Date().toISOString(),
-        referralCount: 0,
-        energy: 100,
-        maxEnergy: 100,
-        xp: 0,
-        level: 1,
-        miningPower: 1,
-        spinsAvailable: 1,
-        dailyRefillCount: 0,
-        dailySpinCount: 0,
-        dailyAdsWatched: 0,
-        dailyMiningCount: 0,
-        lastDailyGoalReset: new Date().toISOString(),
-        dailyGoalClaimed: false
+            uid: cred.user.uid,
+            email: email,
+            balance: initialBalance,
+            referralCode: Math.random().toString(36).substr(2, 6).toUpperCase(), // Unique code for new user
+            referredBy: referrerId,
+            completedTaskIds: [],
+            isAdmin: isAdmin,
+            isBanned: false,
+            joinedAt: new Date().toISOString(),
+            referralCount: 0,
+            energy: 100,
+            maxEnergy: 100,
+            xp: 0,
+            level: 1,
+            miningPower: 1,
+            spinsAvailable: 1,
+            dailyRefillCount: 0,
+            dailySpinCount: 0,
+            dailyAdsWatched: 0,
+            dailyMiningCount: 0,
+            lastDailyGoalReset: new Date().toISOString(),
+            dailyGoalClaimed: false
         };
         await setDoc(doc(db, PATHS.USERS, cred.user.uid), newUser);
     } catch (error) {
