@@ -4,6 +4,7 @@ import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import { dataService } from '../services/firebase';
 import { adLogic } from '../services/adLogic';
+import { AD_CONFIG } from '../services/adConfig';
 import { 
   X, 
   Gift, 
@@ -12,13 +13,13 @@ import {
   Target, 
   Copy, 
   CheckCircle, 
-  Calendar,
-  Crown,
-  MessageCircle,
-  Twitter,
-  Send,
-  Zap,
-  Play,
+  Calendar, 
+  Crown, 
+  MessageCircle, 
+  Twitter, 
+  Send, 
+  Zap, 
+  Play, 
   Trophy
 } from './Icons';
 
@@ -42,7 +43,7 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
   const [referInput, setReferInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Dynamic Script Loading for Telegram Playable Ads
+  // Dynamic Script Loading for Telegram Playable Ads (RichAds)
   useEffect(() => {
     if (isOpen && activeTab === 'SPIN') {
       // Check if script already exists to prevent duplicates
@@ -55,20 +56,20 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
       script.onload = () => {
         if (window.TelegramAdsController) {
           try {
-            // Initialize the controller as per instructions
+            // Initialize the controller with specific Playable Ad ID
             const controller = new window.TelegramAdsController();
             controller.initialize({
               pubId: "993592",
-              appId: "4726",
+              appId: "4844", // Explicitly set to 4844 as requested
             });
-            console.log("Telegram Ads Initialized");
+            console.log("RichAds Playable Initialized (4844)");
           } catch (e) {
-            console.error("Failed to init Telegram Ads", e);
+            console.error("Failed to init RichAds", e);
           }
         }
       };
       script.onerror = () => {
-          console.warn("Failed to load Telegram Ads Script");
+          console.warn("Failed to load RichAds Script");
       };
       document.body.appendChild(script);
 

@@ -5,7 +5,7 @@ import { TaskCard } from '../components/TaskCard';
 import { Task, TaskType } from '../types';
 import { dataService } from '../services/firebase';
 import { useUser } from '../context/UserContext';
-import { AD_CONFIG } from '../services/adConfig';
+import { AdBanner } from '../components/AdBanner';
 
 interface OfferWallCardProps {
     task: Task;
@@ -106,39 +106,31 @@ export const Earn: React.FC = () => {
                   <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
                     <Info size={18} className="text-primary" />
                   </div>
-                  <span className="font-bold text-white text-sm">How to Earn from Offer Walls</span>
+                  <span className="font-bold text-white text-sm">How to Earn</span>
               </div>
               <ChevronRight size={18} className={`text-gray-400 transition-transform duration-200 ${showInstructions ? 'rotate-90' : ''}`} />
           </div>
           {showInstructions && (
               <div className="mt-4 pt-4 border-t border-surfaceLight text-sm text-gray-400 space-y-2 animate-fade-in">
-                  <p>1. Select a partner offer wall or featured offer below.</p>
-                  <p>2. Complete the specific requirements (e.g., reach Level 10, Install App).</p>
-                  <p>3. Wait for verification. Some offers are instant, others take up to 24 hours.</p>
-                  <p>4. Rewards are automatically credited to your balance upon partner verification.</p>
+                  <p>1. Select a partner offer or featured task below.</p>
+                  <p>2. Complete the specific requirements (e.g., Reach Level 10).</p>
+                  <p>3. Wait for verification. Some offers are instant.</p>
+                  <p>4. Rewards are automatically credited to your balance.</p>
               </div>
           )}
       </div>
 
-      {/* CPA GRIP / ZEYDOO OFFER WALL EMBED */}
+      {/* PARTNER SPOTLIGHT (RICHADS BANNER REPLACEMENT) */}
       <section className="bg-surface border border-surfaceLight rounded-2xl overflow-hidden shadow-lg shadow-black/20">
           <div className="p-4 border-b border-surfaceLight flex justify-between items-center bg-gradient-to-r from-indigo-900/50 to-purple-900/20">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                 <Globe className="text-indigo-400" /> Partner Offers
+                 <Globe className="text-indigo-400" /> Partner Spotlight
               </h2>
-              <span className="text-xs bg-indigo-500 text-white px-2 py-1 rounded font-bold shadow-sm">High Yield</span>
+              <span className="text-xs bg-indigo-500 text-white px-2 py-1 rounded font-bold shadow-sm">Featured</span>
           </div>
-          <div className="w-full h-[600px] bg-white relative">
-              <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none">
-                  Loading Offer Wall...
-              </div>
-              {/* IFRAME FOR OFFER WALL */}
-              <iframe 
-                src={AD_CONFIG.OFFER_WALL_URL} 
-                title="Offer Wall"
-                className="relative z-10 w-full h-full border-0"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-              />
+          <div className="w-full bg-surfaceLight/20 p-4 flex justify-center min-h-[250px]">
+              {/* Using AdBanner to render RichAds Embedded Banner */}
+              <AdBanner className="w-full !my-0 !bg-transparent" />
           </div>
       </section>
 
@@ -157,7 +149,7 @@ export const Earn: React.FC = () => {
             </div>
           ) : (
             <div className="w-full text-center py-8 bg-surface/30 rounded-2xl border border-dashed border-surfaceLight">
-                <p className="text-gray-500 text-sm">Check the partner wall above for more offers.</p>
+                <p className="text-gray-500 text-sm">Check the partner spotlight above for more.</p>
             </div>
           )}
       </section>

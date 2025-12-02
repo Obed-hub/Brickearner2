@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -52,9 +53,36 @@
 </script>
 <!-- Monetag SDK -->
 <script src='//libtl.com/sdk.js' data-zone='10210637' data-sdk='show_10210637'></script>
+<!-- RichAds Push-Style (Zone 379589) -->
+<script src="https://richinfo.co/richpartners/telegram/js/tg-ob.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if(window.TelegramAdsController) {
+            const pushController = new TelegramAdsController();
+            pushController.initialize({
+                pubId: "993592",
+                appId: "379589"
+            });
+        }
+    });
+</script>
+<!-- Telegram Web App Script -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
   <body class="bg-background text-white antialiased">
     <div id="root"></div>
+    <!-- RichAds Interstitial (Zone 379591/379592) -->
+    <script>
+        window.addEventListener('load', () => {
+            if(window.TelegramAdsController) {
+                const interstitialController = new TelegramAdsController();
+                interstitialController.initialize({
+                    pubId: "993592",
+                    appId: "379591" 
+                });
+            }
+        });
+    </script>
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>
