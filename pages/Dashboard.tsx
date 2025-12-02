@@ -1,12 +1,18 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { GlobalSettings } from '../types';
 import { dataService } from '../services/firebase';
 import { adLogic } from '../services/adLogic';
-import { Megaphone, Play, Pickaxe, Zap, Trophy, Plus } from '../components/Icons';
+import { Megaphone, Play, Pickaxe, Zap, Trophy, Plus, Copy } from '../components/Icons';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import { AdBanner } from '../components/AdBanner';
+
+// Extend Window interface for Monetag SDK
+declare global {
+  interface Window {
+    show_10210637: () => Promise<void>;
+  }
+}
 
 export const Dashboard: React.FC = () => {
   const { user } = useUser();
@@ -15,6 +21,7 @@ export const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isMining, setIsMining] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
+  const [loadingAd, setLoadingAd] = useState(false);
   
   // Ad Watching State (for Energy Refill)
   const [timer, setTimer] = useState<number | null>(null);
@@ -36,9 +43,6 @@ export const Dashboard: React.FC = () => {
           setShowAdModal(true);
           return;
       }
-
-      // REMOVED: Automatic ad trigger on mine. 
-      // Mining is now clean. Ads are only triggered via the Refill Modal.
 
       setIsMining(true);
       try {
@@ -80,6 +84,27 @@ export const Dashboard: React.FC = () => {
       }, 1000);
   };
 
+  const handleWatchMonetag = async () => {
+      setLoadingAd(true);
+      if (typeof window.show_10210637 === 'function') {
+          try {
+              // Trigger Monetag SDK
+              await window.show_10210637(); 
+              
+              // Claim Reward
+              await dataService.claimAdCoinReward();
+              showToast("Ad watched! Reward added.", "success");
+              if (navigator.vibrate) navigator.vibrate(100);
+          } catch (e) {
+              console.error(e);
+              showToast("Ad failed or closed early.", "error");
+          }
+      } else {
+          showToast("Ad system loading... Try again.", "info");
+      }
+      setLoadingAd(false);
+  };
+
   const finishAd = async () => {
       if (timerRef.current) clearInterval(timerRef.current);
       setTimer(null);
@@ -104,6 +129,13 @@ export const Dashboard: React.FC = () => {
   const xp = user?.xp || 0;
   const level = user?.level || 1;
   const xpProgress = Math.min((xp % 100) / 100 * 100, 100); 
+
+  const copyReferral = () => {
+      if (user?.referralCode) {
+          navigator.clipboard.writeText(user.referralCode);
+          showToast("Code copied!", "success");
+      }
+  }
 
   return (
     <div className="space-y-6 pb-10 max-w-lg mx-auto">
@@ -144,8 +176,32 @@ export const Dashboard: React.FC = () => {
           </div>
       </div>
 
+      {/* REFERRAL QUICK ACCESS */}
+      <div onClick={copyReferral} className="bg-surfaceLight/30 border border-white/5 rounded-xl p-3 flex justify-between items-center cursor-pointer active:scale-95 transition-transform">
+          <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Your Invite Code:</span>
+              <span className="font-mono font-bold text-primary tracking-wider">{user?.referralCode}</span>
+          </div>
+          <Copy size={16} className="text-gray-500" />
+      </div>
+
       {/* AD BANNER (Extra Bonus) */}
       <AdBanner />
+
+      {/* WATCH & EARN BUTTON */}
+      <button 
+        onClick={handleWatchMonetag}
+        disabled={loadingAd}
+        className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-lg shadow-green-500/20 flex items-center justify-center gap-3 active:scale-95 transition-all"
+      >
+          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+              {loadingAd ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Play size={20} fill="currentColor" />}
+          </div>
+          <div className="text-left">
+              <h3 className="font-bold text-white leading-none">Watch Ad & Earn</h3>
+              <p className="text-green-100 text-xs mt-1">Get +{settings?.coinsPerAd || 0.005} coins instantly</p>
+          </div>
+      </button>
 
       {/* MAIN MINING AREA */}
       <div className="relative py-10 flex flex-col items-center justify-center">
@@ -163,7 +219,7 @@ export const Dashboard: React.FC = () => {
               
               {isMining && (
                   <div className="absolute -top-10 text-green-400 font-bold text-xl animate-bounce">
-                      +0.0005
+                      +{(settings?.gamification?.clickReward || 0.0005)}
                   </div>
               )}
           </button>

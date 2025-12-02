@@ -1,4 +1,3 @@
-
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
@@ -103,6 +102,8 @@ export const dispatchGlobalError = (error: any) => {
       return; 
   } else if (message.includes("Firebase:")) {
       message = message.replace("Firebase: ", "").replace("Error (", "").replace(").", "");
+  } else if (message.includes("Script error")) {
+      return; // Suppress generic script errors
   }
   
   const event = new CustomEvent('brickearner-error', { detail: message });
@@ -393,6 +394,36 @@ export const dataService = {
        }
        throw error;
     }
+  },
+
+  claimAdCoinReward: async () => {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Not logged in');
+      const userRef = doc(db, PATHS.USERS, user.uid);
+      const settingsRef = doc(db, PATHS.GLOBALS, 'settings');
+
+      try {
+          await runTransaction(db, async (transaction) => {
+              const settingsDoc = await transaction.get(settingsRef);
+              const settings = settingsDoc.exists() ? settingsDoc.data() as GlobalSettings : INITIAL_SETTINGS;
+              const reward = settings.coinsPerAd || 0.005;
+
+              const userDoc = await transaction.get(userRef);
+              if (!userDoc.exists()) throw new Error("User missing");
+              const userData = userDoc.data() as User;
+
+              const resetUpdates = getDailyResetUpdates(userData);
+              const currentData = { ...userData, ...resetUpdates };
+
+              transaction.update(userRef, {
+                  ...resetUpdates,
+                  balance: (currentData.balance || 0) + reward,
+                  dailyAdsWatched: (currentData.dailyAdsWatched || 0) + 1
+              });
+          });
+      } catch (error) {
+          throw error;
+      }
   },
 
   claimDailyBonus: async () => {
