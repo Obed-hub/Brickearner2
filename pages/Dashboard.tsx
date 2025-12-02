@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { GlobalSettings } from '../types';
 import { dataService } from '../services/firebase';
@@ -204,7 +205,7 @@ export const Dashboard: React.FC = () => {
       </button>
 
       {/* MAIN MINING AREA */}
-      <div className="relative py-10 flex flex-col items-center justify-center">
+      <div className="relative py-10 flex flex-col items-center justify-center overflow-hidden">
           <div className="absolute inset-0 bg-primary/5 rounded-full blur-3xl transform scale-150"></div>
           
           <button 

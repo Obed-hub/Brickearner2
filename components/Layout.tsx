@@ -23,11 +23,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     user?.uid === 'alyPvUmbaCT3Tu49IuG4sQedasG3';
 
   return (
-    <div className="min-h-screen bg-background text-white pb-20 md:pb-0 font-sans selection:bg-primary selection:text-white">
+    <div className="min-h-screen bg-background text-white pb-20 md:pb-0 font-sans selection:bg-primary selection:text-white overflow-x-hidden">
       {/* Top Navbar */}
       <nav className="sticky top-0 z-50 bg-surface/90 backdrop-blur-md border-b border-surfaceLight px-4 py-3 flex justify-between items-center shadow-lg">
         <div className="flex items-center gap-3">
-          <button className="md:hidden text-gray-400 hover:text-white">
+          <button className="md:hidden text-gray-400 hover:text-white" onClick={() => setIsHubOpen(true)}>
             <MenuIcon size={24} />
           </button>
           <div className="flex flex-col">
@@ -71,7 +71,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Game Hub Button for Desktop */}
             <button 
                 onClick={() => setIsHubOpen(true)}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-yellow-400 hover:bg-surfaceLight hover:text-yellow-300 font-bold"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200 text-yellow-400 hover:bg-surfaceLight hover:text-yellow-300 font-bold"
             >
                 <Plus size={20} />
                 <span>Bonus Hub</span>
@@ -101,13 +101,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </main>
 
-      {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-lg border-t border-surfaceLight px-2 py-2 flex justify-between items-center z-50 pb-safe">
+      {/* Mobile Bottom Navigation - FIXED with Grid */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-lg border-t border-surfaceLight px-0 py-2 grid grid-cols-5 items-center z-50 pb-safe">
         <MobileNavItem icon={<Home size={24} />} label="Home" active={isActive('/')} onClick={() => navigate('/')} />
         <MobileNavItem icon={<Gamepad2 size={24} />} label="Earn" active={isActive('/earn')} onClick={() => navigate('/earn')} />
         
-        {/* Mobile FAB Placeholder */}
-        <div className="w-12"></div> 
+        {/* Empty div for the FAB's space */}
+        <div></div> 
         
         <MobileNavItem icon={<Wallet size={24} />} label="Cashout" active={isActive('/cashout')} onClick={() => navigate('/cashout')} />
         
@@ -160,7 +160,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 const SidebarItem = ({ icon, label, active, onClick }: any) => (
   <button 
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200 ${
       active 
       ? 'bg-primary/10 text-primary font-medium' 
       : 'text-gray-400 hover:bg-surfaceLight hover:text-white'
@@ -174,7 +174,7 @@ const SidebarItem = ({ icon, label, active, onClick }: any) => (
 const MobileNavItem = ({ icon, label, active, onClick }: any) => (
   <button 
     onClick={onClick}
-    className={`flex flex-col items-center gap-1 transition-colors px-2 ${
+    className={`flex flex-col items-center justify-center gap-1 transition-colors w-full ${
       active ? 'text-primary' : 'text-gray-500'
     }`}
   >
