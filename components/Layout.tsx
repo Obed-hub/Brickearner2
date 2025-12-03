@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Gamepad2, Wallet, User as UserIcon, Menu as MenuIcon, Bell, Plus, Settings } from './Icons';
 import { useUser } from '../context/UserContext';
 import { GameHub } from './GameHub';
+import { DailyStreakModal } from './DailyStreakModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,6 +15,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isHubOpen, setIsHubOpen] = useState(false);
+  const [showDailyModal, setShowDailyModal] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -21,6 +23,23 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isSuperAdmin = 
     user?.email?.toLowerCase() === 'joinsexcompany@gmail.com' || 
     user?.uid === 'alyPvUmbaCT3Tu49IuG4sQedasG3';
+
+  // Check for Daily Bonus Availability on Load
+  useEffect(() => {
+      if (user) {
+          const lastClaim = user.lastDailyBonus ? new Date(user.lastDailyBonus).toDateString() : '';
+          const today = new Date().toDateString();
+          
+          // If the last claim was NOT today, show the modal
+          if (lastClaim !== today) {
+              // Add a small delay for better UX (let the app load first)
+              const timer = setTimeout(() => {
+                  setShowDailyModal(true);
+              }, 1000);
+              return () => clearTimeout(timer);
+          }
+      }
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-background text-white pb-20 md:pb-0 font-sans selection:bg-primary selection:text-white overflow-x-hidden">
@@ -135,6 +154,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       <GameHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
+      
+      {/* DAILY STREAK POPUP */}
+      {showDailyModal && (
+          <DailyStreakModal onClose={() => setShowDailyModal(false)} />
+      )}
 
       <style>{`
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
@@ -160,7 +184,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 const SidebarItem = ({ icon, label, active, onClick }: any) => (
   <button 
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200 ${
+    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
       active 
       ? 'bg-primary/10 text-primary font-medium' 
       : 'text-gray-400 hover:bg-surfaceLight hover:text-white'

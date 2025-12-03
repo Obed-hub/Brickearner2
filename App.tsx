@@ -9,7 +9,7 @@ import { Admin } from './pages/Admin';
 import { Login } from './pages/Login';
 import { UserProvider, useUser } from './context/UserContext';
 import { ToastProvider, useToast } from './context/ToastContext';
-import { User as UserIcon, LogOut, Copy, MessageCircle, Twitter, Send } from './components/Icons';
+import { User as UserIcon, LogOut, Copy, MessageCircle, Twitter, Send, User } from './components/Icons';
 
 // Protected Route Wrapper
 interface ProtectedRouteProps {
@@ -107,6 +107,24 @@ const ProfileView = () => {
                 </div>
                 <h2 className="text-xl font-bold mb-1 text-white">{user?.email}</h2>
                 <p className="text-gray-500 text-xs font-mono mb-6">UID: {user?.uid}</p>
+                
+                {/* Stats Row */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="bg-surfaceLight/50 rounded-2xl p-3 border border-white/5">
+                        <p className="text-xs text-gray-400 font-bold uppercase">Referrals</p>
+                        <p className="text-xl font-bold text-white flex items-center justify-center gap-2">
+                            <User size={16} className="text-blue-400" />
+                            {user?.referralCount || 0}
+                        </p>
+                    </div>
+                    <div className="bg-surfaceLight/50 rounded-2xl p-3 border border-white/5">
+                        <p className="text-xs text-gray-400 font-bold uppercase">Level</p>
+                        <p className="text-xl font-bold text-white flex items-center justify-center gap-2">
+                            <span className="text-yellow-500">★</span>
+                            {user?.level || 1}
+                        </p>
+                    </div>
+                </div>
                 
                 {/* Referral Section */}
                 <div className="bg-surfaceLight/30 border border-white/5 p-4 rounded-2xl mb-6">

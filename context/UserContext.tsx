@@ -40,12 +40,21 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const unsubscribeDoc = onSnapshot(userRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
+            
+            // --- SELF-HEALING: Generate Referral Code if missing ---
+            let currentReferralCode = data.referralCode;
+            if (!currentReferralCode) {
+                currentReferralCode = Math.random().toString(36).substr(2, 6).toUpperCase();
+                // Update DB asynchronously
+                setDoc(userRef, { referralCode: currentReferralCode }, { merge: true }).catch(err => console.error("Ref code gen error", err));
+            }
+
             // Sanitize data and provide defaults for Game Stats
             const sanitizedUser: User = {
                 uid: data.uid || firebaseUser.uid,
                 email: data.email || firebaseUser.email || '',
                 balance: typeof data.balance === 'number' ? data.balance : 0,
-                referralCode: data.referralCode || '',
+                referralCode: currentReferralCode,
                 completedTaskIds: data.completedTaskIds || [],
                 isAdmin: !!data.isAdmin,
                 isBanned: !!data.isBanned,
