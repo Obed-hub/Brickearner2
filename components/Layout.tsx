@@ -1,10 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Gamepad2, Wallet, User as UserIcon, Menu as MenuIcon, Bell, Plus, Settings } from './Icons';
 import { useUser } from '../context/UserContext';
 import { GameHub } from './GameHub';
-import { DailyStreakModal } from './DailyStreakModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,7 +14,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isHubOpen, setIsHubOpen] = useState(false);
-  const [showDailyModal, setShowDailyModal] = useState(false);
+  
+  // State to control which tab opens initially (for auto-opening on login)
+  const [initialHubTab, setInitialHubTab] = useState<'SPIN' | 'GOALS' | 'REFER' | 'QUESTS'>('SPIN');
+  const hasOpenedGoalHub = useRef(false);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -24,29 +26,41 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     user?.email?.toLowerCase() === 'joinsexcompany@gmail.com' || 
     user?.uid === 'alyPvUmbaCT3Tu49IuG4sQedasG3';
 
-  // Check for Daily Bonus Availability on Load
+  // Check for Daily Goal Availability on Load
   useEffect(() => {
-      if (user) {
-          const lastClaim = user.lastDailyBonus ? new Date(user.lastDailyBonus).toDateString() : '';
+      if (user && !hasOpenedGoalHub.current) {
+          // Check if data is stale (from yesterday)
+          const lastReset = user.lastDailyGoalReset ? new Date(user.lastDailyGoalReset).toDateString() : '';
           const today = new Date().toDateString();
-          
-          // If the last claim was NOT today, show the modal
-          if (lastClaim !== today) {
-              // Add a small delay for better UX (let the app load first)
+          const isStale = lastReset !== today; // It's a new day, so goals are logically reset (unclaimed)
+
+          // If stale, it's effectively unclaimed. If not stale, check the flag.
+          const isClaimedToday = !isStale && user.dailyGoalClaimed;
+
+          // If NOT claimed today, force open the hub on GOALS tab to put it "in front of user"
+          if (!isClaimedToday) {
+              hasOpenedGoalHub.current = true;
+              // Small delay to ensure app is ready
               const timer = setTimeout(() => {
-                  setShowDailyModal(true);
+                  setInitialHubTab('GOALS');
+                  setIsHubOpen(true);
               }, 1000);
               return () => clearTimeout(timer);
           }
       }
   }, [user]);
 
+  const handleOpenHub = (tab: 'SPIN' | 'GOALS' | 'REFER' | 'QUESTS' = 'SPIN') => {
+      setInitialHubTab(tab);
+      setIsHubOpen(true);
+  }
+
   return (
     <div className="min-h-screen bg-background text-white pb-20 md:pb-0 font-sans selection:bg-primary selection:text-white overflow-x-hidden">
       {/* Top Navbar */}
       <nav className="sticky top-0 z-50 bg-surface/90 backdrop-blur-md border-b border-surfaceLight px-4 py-3 flex justify-between items-center shadow-lg">
         <div className="flex items-center gap-3">
-          <button className="md:hidden text-gray-400 hover:text-white" onClick={() => setIsHubOpen(true)}>
+          <button className="md:hidden text-gray-400 hover:text-white" onClick={() => handleOpenHub()}>
             <MenuIcon size={24} />
           </button>
           <div className="flex flex-col">
@@ -89,7 +103,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             
             {/* Game Hub Button for Desktop */}
             <button 
-                onClick={() => setIsHubOpen(true)}
+                onClick={() => handleOpenHub('SPIN')}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200 text-yellow-400 hover:bg-surfaceLight hover:text-yellow-300 font-bold"
             >
                 <Plus size={20} />
@@ -146,20 +160,19 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Mobile Floating Action Button (Center) - NOW OPENS GAME HUB */}
       <div className="md:hidden fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
          <button 
-           onClick={() => setIsHubOpen(true)}
+           onClick={() => handleOpenHub('SPIN')}
            className="w-14 h-14 bg-gradient-to-tr from-primary to-purple-500 hover:brightness-110 rounded-full flex items-center justify-center shadow-lg shadow-primary/40 border-4 border-background transition-transform active:scale-95 animate-bounce-subtle"
          >
            <Plus size={28} className="text-white" />
          </button>
       </div>
 
-      <GameHub isOpen={isHubOpen} onClose={() => setIsHubOpen(false)} />
+      <GameHub 
+        isOpen={isHubOpen} 
+        onClose={() => setIsHubOpen(false)} 
+        initialTab={initialHubTab}
+      />
       
-      {/* DAILY STREAK POPUP */}
-      {showDailyModal && (
-          <DailyStreakModal onClose={() => setShowDailyModal(false)} />
-      )}
-
       <style>{`
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         @keyframes fade-in {

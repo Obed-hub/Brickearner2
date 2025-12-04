@@ -8,10 +8,11 @@ import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import { AdBanner } from '../components/AdBanner';
 
-// Extend Window interface for Monetag SDK
+// Extend Window interface for SDKs
 declare global {
   interface Window {
     show_10210637: () => Promise<void>;
+    TelegramAdsController: any;
   }
 }
 
@@ -24,8 +25,9 @@ export const Dashboard: React.FC = () => {
   const [showAdModal, setShowAdModal] = useState(false);
   const [loadingAd, setLoadingAd] = useState(false);
   
-  // Ad Watching State (for Energy Refill)
+  // Ad Watching State
   const [timer, setTimer] = useState<number | null>(null);
+  const [rewardType, setRewardType] = useState<'ENERGY' | 'COINS'>('ENERGY');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -34,6 +36,20 @@ export const Dashboard: React.FC = () => {
         setSettings(updatedSettings);
     });
     return () => unsubscribeSettings();
+  }, []);
+
+  // Timer Completion Effect
+  useEffect(() => {
+      if (timer === 0) {
+          finishAd();
+      }
+  }, [timer]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+      return () => {
+          if (timerRef.current) clearInterval(timerRef.current);
+      }
   }, []);
 
   const handleMine = async () => {
@@ -61,11 +77,24 @@ export const Dashboard: React.FC = () => {
       }
   };
 
+  const startTimerInterval = () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+          setTimer(prev => {
+              if (prev === null) return null;
+              if (prev <= 1) return 0; // Hits 0 to trigger effect
+              return prev - 1;
+          });
+      }, 1000);
+  };
+
   const handleWatchAd = async () => {
       if (!settings?.adsEnabled) {
           showToast("Ad system is currently disabled.", "info");
           return;
       }
+
+      setRewardType('ENERGY');
 
       // 1. Open the Ad Network Direct Link
       await adLogic.watchAd('REWARD');
@@ -73,58 +102,60 @@ export const Dashboard: React.FC = () => {
       // 2. Start UI Timer
       setTimer(15); 
       showToast("Verifying Ad View...", "info");
-
-      timerRef.current = setInterval(() => {
-          setTimer(prev => {
-              if (prev === null || prev <= 1) {
-                  finishAd();
-                  return null;
-              }
-              return prev - 1;
-          });
-      }, 1000);
+      startTimerInterval();
   };
 
-  const handleWatchMonetag = async () => {
+  const handleWatchRichAds = async () => {
+      if (!settings?.adsEnabled) {
+          showToast("Ad system is currently disabled.", "info");
+          return;
+      }
+
       setLoadingAd(true);
-      if (typeof window.show_10210637 === 'function') {
+      setRewardType('COINS');
+
+      // 1. Trigger RichAds Playable SDK
+      if (window.TelegramAdsController) {
           try {
-              // Trigger Monetag SDK
-              await window.show_10210637(); 
-              
-              // Claim Reward
-              await dataService.claimAdCoinReward();
-              showToast("Ad watched! Reward added.", "success");
-              if (navigator.vibrate) navigator.vibrate(100);
+              const controller = new window.TelegramAdsController();
+              controller.initialize({
+                  pubId: "993592",
+                  appId: "4844" // Specific App ID for Watch & Earn
+              });
           } catch (e) {
-              console.error(e);
-              showToast("Ad failed or closed early.", "error");
+              console.warn("RichAds init warning:", e);
           }
       } else {
-          showToast("Ad system loading... Try again.", "info");
+          console.warn("RichAds SDK not found");
       }
-      setLoadingAd(false);
+
+      // 2. Start Verification Timer
+      setTimer(15); 
+      // showToast("Watch the ad to earn reward...", "info"); // Optional toast
+      startTimerInterval();
   };
 
   const finishAd = async () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      setTimer(null);
       
       try {
-        await dataService.refillEnergy();
-        showToast("Energy Refilled!", "success");
-        setShowAdModal(false);
+        if (rewardType === 'ENERGY') {
+            await dataService.refillEnergy();
+            showToast("Energy Refilled!", "success");
+            setShowAdModal(false);
+        } else {
+            await dataService.claimAdCoinReward();
+            showToast("Ad verified! Reward added.", "success");
+            if (navigator.vibrate) navigator.vibrate(100);
+        }
       } catch (e) {
           console.error(e);
           showToast("Failed to verify ad.", "error");
+      } finally {
+          setTimer(null);
+          setLoadingAd(false);
       }
   };
-  
-  useEffect(() => {
-      return () => {
-          if (timerRef.current) clearInterval(timerRef.current);
-      }
-  }, []);
 
   // Calculate XP Progress
   const xp = user?.xp || 0;
@@ -191,15 +222,21 @@ export const Dashboard: React.FC = () => {
 
       {/* WATCH & EARN BUTTON */}
       <button 
-        onClick={handleWatchMonetag}
-        disabled={loadingAd}
-        className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-lg shadow-green-500/20 flex items-center justify-center gap-3 active:scale-95 transition-all"
+        onClick={handleWatchRichAds}
+        disabled={loadingAd || (timer !== null && rewardType === 'COINS')}
+        className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-lg shadow-green-500/20 flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-80 disabled:cursor-not-allowed"
       >
           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-              {loadingAd ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Play size={20} fill="currentColor" />}
+              {(timer !== null && rewardType === 'COINS') ? (
+                  <span className="font-bold text-xs text-white animate-pulse">{timer}s</span>
+              ) : (
+                  loadingAd ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Play size={20} fill="currentColor" />
+              )}
           </div>
           <div className="text-left">
-              <h3 className="font-bold text-white leading-none">Watch Ad & Earn</h3>
+              <h3 className="font-bold text-white leading-none">
+                  {(timer !== null && rewardType === 'COINS') ? 'Verifying Ad...' : 'Watch Ad & Earn'}
+              </h3>
               <p className="text-green-100 text-xs mt-1">Get +{settings?.coinsPerAd || 0.005} coins instantly</p>
           </div>
       </button>
@@ -270,7 +307,7 @@ export const Dashboard: React.FC = () => {
                       You need energy to keep mining. Watch a short video to refill your energy to 100%.
                   </p>
                   
-                  {timer ? (
+                  {(timer !== null && rewardType === 'ENERGY') ? (
                       <div className="w-full bg-surfaceLight rounded-xl p-4 text-center">
                           <p className="text-primary font-bold animate-pulse mb-2">Verifying Ad... {timer}s</p>
                           <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">

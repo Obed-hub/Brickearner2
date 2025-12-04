@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { AD_CONFIG } from '../services/adConfig';
 
 interface AdBannerProps {
@@ -7,30 +7,39 @@ interface AdBannerProps {
 }
 
 export const AdBanner: React.FC<AdBannerProps> = ({ className = '' }) => {
-  // We use an iframe to safely render ads that might use document.write()
-  // This prevents the ad script from breaking the React application.
-  
-  const iframeContent = `
-    <html>
-      <body style="margin:0; padding:0; display:flex; justify-content:center; align-items:center; background-color: transparent;">
-        ${AD_CONFIG.BANNER_CODE}
-      </body>
-    </html>
-  `;
+  const bannerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = bannerRef.current;
+    if (!container) return;
+
+    // Reset container to prevent duplicates
+    container.innerHTML = '';
+
+    try {
+        // We use createContextualFragment to properly parse HTML strings 
+        // and execute any embedded <script> tags within the main window context.
+        // This is necessary for Ad Networks (like RichAds/TelegramAds) that require
+        // domain validation or access to the global window object.
+        const range = document.createRange();
+        range.selectNode(container);
+        const fragment = range.createContextualFragment(AD_CONFIG.BANNER_CODE);
+        container.appendChild(fragment);
+    } catch (e) {
+        console.error("AdBanner injection error:", e);
+    }
+
+    return () => {
+        if (container) container.innerHTML = '';
+    };
+  }, []);
 
   return (
-    <div className={`flex justify-center items-center my-4 overflow-hidden rounded-xl bg-surfaceLight/30 ${className}`}>
-      <iframe
-        title="Ad Banner"
-        srcDoc={iframeContent}
-        style={{
-          width: '300px', // Matches Adsterra config
-          height: '250px', // Matches Adsterra config
-          border: 'none',
-          overflow: 'hidden'
-        }}
-        scrolling="no"
-      />
+    <div 
+        ref={bannerRef} 
+        className={`flex justify-center items-center my-4 overflow-hidden rounded-xl bg-surfaceLight/30 w-full min-h-[250px] ${className}`}
+    >
+        {/* Ad Injected Here */}
     </div>
   );
 };

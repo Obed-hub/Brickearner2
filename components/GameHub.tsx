@@ -4,16 +4,13 @@ import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import { dataService } from '../services/firebase';
 import { adLogic } from '../services/adLogic';
-import { AD_CONFIG } from '../services/adConfig';
 import { 
   X, 
-  Gift, 
   Dices, 
   Share2, 
   Target, 
   Copy, 
   CheckCircle, 
-  Calendar, 
   Crown, 
   MessageCircle, 
   Twitter, 
@@ -33,15 +30,23 @@ declare global {
 interface GameHubProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: 'SPIN' | 'GOALS' | 'REFER' | 'QUESTS';
 }
 
-export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
+export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose, initialTab }) => {
   const { user } = useUser();
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'BONUS' | 'SPIN' | 'REFER' | 'QUESTS' | 'GOALS'>('SPIN');
+  const [activeTab, setActiveTab] = useState<'SPIN' | 'GOALS' | 'REFER' | 'QUESTS'>('SPIN');
   const [spinning, setSpinning] = useState(false);
   const [referInput, setReferInput] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Sync active tab with prop when opening
+  useEffect(() => {
+    if (isOpen && initialTab) {
+        setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   // Dynamic Script Loading for Telegram Playable Ads (RichAds)
   useEffect(() => {
@@ -72,31 +77,22 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
           console.warn("Failed to load RichAds Script");
       };
       document.body.appendChild(script);
-
-      return () => {
-      };
     }
   }, [isOpen, activeTab]);
 
   if (!isOpen) return null;
 
-  const handleClaimBonus = async () => {
-      try {
-          await dataService.claimDailyBonus();
-          if (navigator.vibrate) navigator.vibrate(50);
-          showToast("Daily Bonus Claimed!", "success");
-      } catch (e: any) {
-          if (e.message === 'ALREADY_CLAIMED') {
-              showToast("Already claimed today. Come back tomorrow!", "info");
-          } else {
-              showToast("Failed to claim bonus", "error");
-          }
-      }
-  };
-
   const handleSpin = async () => {
       if (!user) return;
       
+      // Smart Stale Check for Spins
+      const lastReset = user.lastDailyGoalReset ? new Date(user.lastDailyGoalReset).toDateString() : '';
+      const today = new Date().toDateString();
+      const isStale = lastReset !== today;
+      
+      // If stale, visually the count is 0, but backend will handle the reset logic.
+      const currentSpinCount = isStale ? 0 : (user.dailySpinCount || 0);
+
       // Check spins. If 0, allow watching ad to get a spin.
       if ((user.spinsAvailable || 0) < 1) {
           
@@ -109,7 +105,6 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
                   showToast("Loading Playable Ad...", "info");
                   
                   // Simulate interaction time for the playable ad
-                  // In a real SDK we might call controller.show() if available
                   await new Promise(r => setTimeout(r, 2000));
                   
                   adSuccess = true;
@@ -119,7 +114,7 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
               }
           }
 
-          // 2. FALLBACK TO SMARTLINK (If Playable failed or SDK missing)
+          // 2. FALLBACK TO SMARTLINK
           if (!adSuccess) {
               console.log("Falling back to Smartlink...");
               showToast("Watch ad for a free spin...", "info");
@@ -136,16 +131,13 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
           return;
       }
       
-      // Check Daily Limit (frontend check for immediate feedback, backend enforces too)
-      if ((user.dailySpinCount || 0) >= 7) {
+      if (currentSpinCount >= 7) {
           showToast("Daily limit reached (7 spins). Come back tomorrow!", "error");
           return;
       }
 
-      // Standard Spin Flow
       setSpinning(true);
       try {
-          // Visual delay
           await new Promise(r => setTimeout(r, 2000));
           const result = await dataService.spinWheel();
           if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
@@ -200,7 +192,7 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
   const shareReferral = (platform: 'whatsapp' | 'telegram' | 'twitter') => {
       if (!user?.referralCode) return;
       const text = `Join Brickearner using my code ${user.referralCode} and earn crypto!`;
-      const url = window.location.origin; // Or your actual deployed URL
+      const url = window.location.origin;
       let link = '';
 
       switch(platform) {
@@ -220,7 +212,6 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
   const tabs = [
     { id: 'SPIN', icon: <Dices size={20} />, label: 'Spin' },
     { id: 'GOALS', icon: <Trophy size={20} />, label: 'Goals' },
-    { id: 'BONUS', icon: <Calendar size={20} />, label: 'Daily' },
     { id: 'REFER', icon: <Share2 size={20} />, label: 'Refer' },
     { id: 'QUESTS', icon: <Target size={20} />, label: 'VIP' },
   ];
@@ -246,17 +237,22 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
 
   const progressPercent = refCount >= 20 ? 100 : Math.min((refCount / nextTier) * 100, 100);
 
-  // Daily Goal Logic
-  const refills = user?.dailyRefillCount || 0;
-  const spins = user?.dailySpinCount || 0;
-  // Mining goal target is implied by energy use, we can use dailyMiningCount if available or simplify.
-  const miningActions = user?.dailyMiningCount || 0;
+  // --- DAILY GOAL LOGIC WITH STALE CHECK ---
+  // Ensure we show 0 progress if the database hasn't lazily updated for the new day yet
+  const lastReset = user?.lastDailyGoalReset ? new Date(user.lastDailyGoalReset).toDateString() : '';
+  const today = new Date().toDateString();
+  const isStale = lastReset !== today;
+
+  const refills = isStale ? 0 : (user?.dailyRefillCount || 0);
+  const spins = isStale ? 0 : (user?.dailySpinCount || 0);
+  const miningActions = isStale ? 0 : (user?.dailyMiningCount || 0);
+  const isClaimedToday = !isStale && !!user?.dailyGoalClaimed;
   
   const GOAL_REFILLS = 10;
   const GOAL_SPINS = 7;
-  const GOAL_MINING = 200; // Example target: 200 clicks
+  const GOAL_MINING = 200;
 
-  const goalsMet = refills >= GOAL_REFILLS && spins >= GOAL_SPINS;
+  const goalsMet = refills >= GOAL_REFILLS && spins >= GOAL_SPINS && miningActions >= GOAL_MINING;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -290,7 +286,7 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
                        <div className="flex justify-between items-center px-4 mb-4">
                            <div className="text-left">
                                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Daily Limit</span>
-                               <p className="text-sm font-bold text-white">{user?.dailySpinCount || 0} / 7</p>
+                               <p className="text-sm font-bold text-white">{spins} / 7</p>
                            </div>
                            <div className="text-right">
                                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Spins Left</span>
@@ -305,7 +301,6 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
                        >
                            {spinning ? 'Spinning...' : ((user?.spinsAvailable || 0) > 0 ? 'Spin Now' : 'Watch Ad for Spin')}
                        </button>
-                       {/* Ad hint */}
                        {(user?.spinsAvailable || 0) < 1 && (
                           <p className="text-[10px] text-yellow-400 mt-2 animate-pulse">RichAds Playable or Smartlink Enabled</p>
                        )}
@@ -355,7 +350,7 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
                                <div className="flex justify-between items-center mb-2">
                                    <div className="flex items-center gap-2">
                                        <Zap size={16} className="text-yellow-400" />
-                                       <span className="text-sm font-bold text-white">Mining Activity</span>
+                                       <span className="text-sm font-bold text-white">Mining Actions</span>
                                    </div>
                                    <span className="text-xs text-gray-400">{miningActions} / {GOAL_MINING}</span>
                                </div>
@@ -367,10 +362,10 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
                        
                        <button 
                            onClick={handleClaimDailyGoal}
-                           disabled={!goalsMet || !!user?.dailyGoalClaimed}
+                           disabled={!goalsMet || isClaimedToday}
                            className="w-full py-3 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold rounded-xl mt-4 shadow-lg flex items-center justify-center gap-2"
                        >
-                           {user?.dailyGoalClaimed ? (
+                           {isClaimedToday ? (
                                <>
                                    <CheckCircle size={18} /> Goal Claimed
                                </>
@@ -379,32 +374,6 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
                            ) : (
                                'Complete Goals to Claim'
                            )}
-                       </button>
-                   </div>
-               )}
-
-               {/* DAILY BONUS */}
-               {activeTab === 'BONUS' && (
-                   <div className="w-full text-center">
-                       <Gift size={48} className="text-green-500 mx-auto mb-4" />
-                       <h3 className="text-xl font-bold mb-2">Daily Check-in</h3>
-                       <p className="text-gray-400 text-sm mb-6">
-                           Streak: <span className="text-green-400 font-bold">{user?.dailyStreak || 0} Days</span>
-                       </p>
-                       
-                       <div className="grid grid-cols-7 gap-1 mb-6">
-                           {[1,2,3,4,5,6,7].map(day => (
-                               <div key={day} className={`aspect-square rounded-lg flex items-center justify-center text-xs font-bold ${day <= (user?.dailyStreak || 0) ? 'bg-green-500 text-black' : 'bg-surfaceLight text-gray-500'}`}>
-                                   {day}
-                               </div>
-                           ))}
-                       </div>
-
-                       <button 
-                         onClick={handleClaimBonus}
-                         className="w-full py-3 bg-green-500 hover:bg-green-600 rounded-xl font-bold text-black shadow-lg shadow-green-500/20"
-                       >
-                           Claim Bonus
                        </button>
                    </div>
                )}
@@ -503,7 +472,7 @@ export const GameHub: React.FC<GameHubProps> = ({ isOpen, onClose }) => {
            </div>
 
            {/* Tab Bar */}
-           <div className="grid grid-cols-5 bg-surfaceLight/30 border-t border-white/5">
+           <div className="grid grid-cols-4 bg-surfaceLight/30 border-t border-white/5">
                {tabs.map(tab => (
                    <button
                      key={tab.id}
